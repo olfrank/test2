@@ -1,8 +1,22 @@
 {
   "canisters": {
+    "ledger": {
+      "type": "custom",
+      "wasm": "ledger.wasm",
+      "candid": "ledger.public.did",
+      "remote": {
+        "candid": "ledger.public.did",
+        "id": {
+          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
+        }
+      }
+    },
     "test2_backend": {
       "main": "src/test2_backend/main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "dependencies": [
+        "ledger"
+      ]
     },
     "test2_frontend": {
       "dependencies": [
@@ -19,6 +33,9 @@
     }
   },
   "defaults": {
+    "replica": {
+      "subnet_type":"system"
+    },
     "build": {
       "args": "",
       "packtool": ""

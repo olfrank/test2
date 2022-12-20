@@ -142,7 +142,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
           memo = Nat64.fromNat(0); //TODO: add contentID as metadata for memo
           // ?Account.accountIdentifier(from, Account.defaultSubaccount());
           // ?Account.principalToSubaccount(from);
-          from_subaccount = ?Account.accountIdentifier(Principal.fromActor(PPV), Account.principalToSubaccount(from));
+          from_subaccount = ?Account.principalToSubaccount(from);
           to = Account.accountIdentifier(to, Account.defaultSubaccount());
           amount = { e8s = amount };
           fee = { e8s = FEE };
@@ -221,9 +221,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   
 // #endregion
 
-  public shared func getSenderAddress(user: Principal): async Blob {
-        Account.accountIdentifier(Principal.fromActor(PPV), Account.principalToSubaccount(user));
-  };
+  
 
 
 
@@ -236,8 +234,12 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
     });
   };
 
-  public func getICPAccountIdentifier(caller : Principal) : async Blob {
+  public func getAccountIdentifier(caller : Principal) : async Blob {
     Account.accountIdentifier(caller, Account.defaultSubaccount());
+  };
+
+  public shared func getSubaccount(user: Principal): async Blob {
+        Account.principalToSubaccount(user);
   };
 
   /*
@@ -269,7 +271,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   };
 
   public func accountBalance (account: Principal) : async Ledger.Tokens{
-      var specifiedAccount = Account.accountIdentifier(account, Account.defaultSubaccount());
+      var specifiedAccount = Account.principalToSubaccount(account);
       await Ledger.account_balance({ account = specifiedAccount });
     };
 

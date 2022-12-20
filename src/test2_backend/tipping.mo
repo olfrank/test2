@@ -36,7 +36,11 @@ actor Tipping {
     var artistTotalMap = Map.HashMap<ArtistID, Nat64>(1, Principal.equal, Principal.hash);
 
 
-  // #region Changing state 
+
+
+
+
+// #region -TIPPING Changing state 
   private func putTippingMap(artist: ArtistID, status: Map.HashMap<UserID, Nat64>){
             tippingMap.put(artist, status);
   };
@@ -67,7 +71,7 @@ actor Tipping {
 
     
 
- // #region Transfer
+// #region Transfer
   public func sendTip(from: UserID, to: ArtistID, amount: Nat64) : async (){
 
     var amountToSend = await platformDeduction(from, amount);
@@ -121,7 +125,7 @@ actor Tipping {
         let res = await Ledger.transfer({
               memo = Nat64.fromNat(0); //TODO: add contentID as metadata for memo
               // ?Account.accountIdentifier(from, Account.defaultSubaccount());
-              from_subaccount = ?Account.accountIdentifier(from, Account.defaultSubaccount());
+              from_subaccount = ?Account.principalToSubaccount(from);
               to = Account.accountIdentifier(to, Account.defaultSubaccount());
               amount = { e8s = amount };
               fee = { e8s = FEE };
@@ -162,6 +166,25 @@ actor Tipping {
 
         return Nat64.fromNat(Int.abs(Float.toInt(amountFloat - deduction)));
     };
-    // #endregion
+// #endregion
+
+
+//#region - Query funcs
+    public func getTippingMap(artist: ArtistID, user: UserID) : async ?Nat64 {
+            switch(tippingMap.get(artist)){
+              case(?nestedMap){
+                nestedMap.get(user)
+              };
+              case null{
+                return ?Nat64.fromNat(0)
+              }
+            };
+    };
+    public func getArtistTotalMap(artist: ArtistID) : async ?Nat64 {
+            artistTotalMap.get(artist);
+    };
+//#endregion
+
+
 
 }

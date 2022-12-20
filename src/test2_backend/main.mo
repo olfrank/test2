@@ -19,7 +19,7 @@ import U          "./utils";
 import Hex        "./Hex";
 import Blob       "mo:base/Blob";
 
-actor PPV {
+actor Payments {
   // minter phrase: hundorp
 
   type contentID = T.contentID;
@@ -40,16 +40,23 @@ actor PPV {
   let TRAX_ACCOUNT = "2l26f-kcxq2-2rwa7-zy36b-3wive-m3hfd-xrbr4-gocr4-7rklt-gmj4y-nqe";
   let FEE : Nat64 = 10000;
 
+  //PPV
   var contentMap = Map.HashMap<contentID, Content>(1, Nat32.equal, func (a : Nat32) : Nat32 {a});
   var userContentMap = Map.HashMap<UserID, Map.HashMap<contentID, Nat64>>(1, Principal.equal, Principal.hash);
 
+  //TIPPING
+  // artist address -> user address -> amount 
+  var tippingMap = Map.HashMap<ArtistID, Map.HashMap<UserID, Nat64>>(1, Principal.equal, Principal.hash);
+  // total amount recieved from tips 
+  var artistTotalMap = Map.HashMap<ArtistID, Nat64>(1, Principal.equal, Principal.hash);
 
 
 
 
 
 
-// #region - Changing State 
+
+// #region - PPV Changing State 
   public func addContent(content : Content): async () {
       contentMap.put(nextContentId, content);
       nextContentId += 1
@@ -74,7 +81,83 @@ actor PPV {
 
 
 
+// #region -TIPPING Changing state 
+  private func putTippingMap(artist: ArtistID, status: Map.HashMap<UserID, Nat64>){
+            tippingMap.put(artist, status);
+  };
+  private func putArtistTotal(artist: ArtistID, amount: Nat64){
+            artistTotalMap.put(artist, amount);
+  };
+
+  private func replaceTippingMap(artist: ArtistID, amount: Nat64, user: UserID): async (?Nat64){ // if returned == 0 (this function could not find key value pair)
+    switch(tippingMap.get(artist)){
+        case(?nestedMap){
+            switch(nestedMap.get(user)){
+            case(?currVal){
+              let newAmount = currVal + amount;
+                nestedMap.replace(user, newAmount)
+            };
+            case null {?Nat64.fromNat(0)}
+            };
+        };
+        case null {?Nat64.fromNat(0)}
+    };
+  };
+
+  private func replaceArtistTotal(artist: ArtistID, amount: Nat64): async (?Nat64){ // if returned == 0 (this function could not find key value pair)
+    artistTotalMap.replace(artist, amount)
+  };         
+
+// #endregion
+
+
+
+
+
+
 // #region - Transfer  
+
+public func sendTip(from: UserID, to: ArtistID, amount: Nat64) : async (){
+
+    var amountToSend = await platformDeduction(from, amount);
+    Debug.print("HEREEEE");
+
+        switch(await transfer(from, to, amountToSend)){
+
+          case(#ok(res)){
+
+            switch(artistTotalMap.get(to)){
+                case(?exists){
+                    var replaceWorked = await replaceArtistTotal(to, amountToSend);
+                }; case null {
+                    putArtistTotal(to, amountToSend);
+                };
+            };
+            
+            switch(tippingMap.get(to)){
+                case(?exists){
+                    var worked = await replaceTippingMap(to, amountToSend, from);
+                    if(worked == ?Nat64.fromNat(0)){
+                        Debug.print("DID NOT update tipMapping for artist: " # debug_show to # " in block " # debug_show res);
+                    }else{
+                        Debug.print("UPDATED tipMapping for artist: " # debug_show to # " in block " # debug_show res);
+                    }
+                };
+                case null {
+                    var x = Map.HashMap<Principal, Nat64>(2, Principal.equal, Principal.hash);
+                    x.put(from, amountToSend);
+                    putTippingMap(to, x);
+                };
+            };
+           
+
+            Debug.print("Paid artist: " # debug_show to # " in block " # debug_show res);
+          }; case(#err(msg)){
+            throw Error.reject("Unexpected error: " # debug_show msg);
+          };
+        };
+    };
+
 public func purchaseContent(id: contentID, user: Principal) : async (){
     
     var price : Nat64 = 0;
@@ -133,16 +216,16 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
 
   func transfer(from: Principal, to: Principal, amount: Nat64): async Result.Result<Nat64, Text>{
 
-    Debug.print("from subaccount: "# debug_show ?Account.principalToSubaccount(from));
-    Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(from, Account.defaultSubaccount()));
-    Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(Principal.fromActor(PPV), Account.principalToSubaccount(from)));
+    // Debug.print("from subaccount: "# debug_show ?Account.principalToSubaccount(from));
+    // Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(from, Account.defaultSubaccount()));
+    // Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(Principal.fromActor(Payments), Account.principalToSubaccount(from)));
 
     let now = Time.now();
     let res = await Ledger.transfer({
           memo = Nat64.fromNat(0); //TODO: add contentID as metadata for memo
           // ?Account.accountIdentifier(from, Account.defaultSubaccount());
           // ?Account.principalToSubaccount(from);
-          from_subaccount = ?Account.principalToSubaccount(from);
+          from_subaccount = ?Account.accountIdentifier(from, Account.defaultSubaccount());
           to = Account.accountIdentifier(to, Account.defaultSubaccount());
           amount = { e8s = amount };
           fee = { e8s = FEE };
@@ -171,7 +254,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
 
 
 
-// #region - Query State
+// #region - PPV Query State
 
   public query func userHasPaid(id: contentID, user: UserID) : async Bool{
     var price : Nat64 = 0;
@@ -217,11 +300,30 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   public query func getCurrentContentID() : async contentID {
     nextContentId;
   };
-
-  
 // #endregion
 
-  
+
+
+
+
+
+//#region - TIPPING Query state
+    public func getTippingMap(artist: ArtistID, user: UserID) : async ?Nat64 {
+            switch(tippingMap.get(artist)){
+              case(?nestedMap){
+                nestedMap.get(user)
+              };
+              case null{
+                return ?Nat64.fromNat(0)
+              }
+            };
+    };
+    public func getArtistTotalMap(artist: ArtistID) : async ?Nat64 {
+            artistTotalMap.get(artist);
+    };
+//#endregion
+
+
 
 
 
@@ -230,7 +332,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   public func accountIdentifierToBlob (accountIdentifier : AccountIdentifier) : async T.AccountIdentifierToBlobResult {
     U.accountIdentifierToBlob({
       accountIdentifier;
-      canisterId = ?Principal.fromActor(PPV);
+      canisterId = ?Principal.fromActor(Payments);
     });
   };
 
@@ -250,7 +352,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   public query func get_account_identifier (args : T.GetAccountIdentifierArgs) : async T.GetAccountIdentifierResult {
     let token = args.token;
     let principal = args.principal;
-    let canisterId = Principal.fromActor(PPV);
+    let canisterId = Principal.fromActor(Payments);
     switch (token.symbol) {
       case "ICP" {
         let subaccount = U.getDefaultAccount({principal; canisterId;});
@@ -271,7 +373,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   };
 
   public func accountBalance (account: Principal) : async Ledger.Tokens{
-      var specifiedAccount = Account.principalToSubaccount(account);
+      var specifiedAccount = Account.accountIdentifier(account, Account.defaultSubaccount());
       await Ledger.account_balance({ account = specifiedAccount });
     };
 
@@ -281,14 +383,9 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   };
 
   private func myAccountId() : Account.AccountIdentifier {
-    Account.accountIdentifier(Principal.fromActor(PPV), Account.defaultSubaccount());
+    Account.accountIdentifier(Principal.fromActor(Payments), Account.defaultSubaccount());
   };
-
 // #endregion
-
-
-  //func isEqUserId(x: contentID, y: contentID): Bool { x == y };
-
 }
 
 

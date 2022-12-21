@@ -97,15 +97,21 @@ actor Payments {
               let newAmount = currVal + amount;
                 nestedMap.replace(user, newAmount)
             };
-            case null {?Nat64.fromNat(0)}
+            case null ?Nat64.fromNat(0);
             };
         };
-        case null {?Nat64.fromNat(0)}
+        case null ?Nat64.fromNat(0);
     };
   };
 
   private func replaceArtistTotal(artist: ArtistID, amount: Nat64): async (?Nat64){ // if returned == 0 (this function could not find key value pair)
-    artistTotalMap.replace(artist, amount)
+    switch(artistTotalMap.get(artist)){
+      case(?currVal){
+        let newAmount = currVal + amount;
+        artistTotalMap.replace(artist, newAmount)
+
+      };case null ?Nat64.fromNat(0);
+    };
   };         
 
 // #endregion
@@ -225,7 +231,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
           memo = Nat64.fromNat(0); //TODO: add contentID as metadata for memo
           // ?Account.accountIdentifier(from, Account.defaultSubaccount());
           // ?Account.principalToSubaccount(from);
-          from_subaccount = ?Account.accountIdentifier(from, Account.defaultSubaccount());
+          from_subaccount = ?Account.principalToSubaccount(from);
           to = Account.accountIdentifier(to, Account.defaultSubaccount());
           amount = { e8s = amount };
           fee = { e8s = FEE };

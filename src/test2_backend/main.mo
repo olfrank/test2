@@ -38,6 +38,7 @@ actor Payments {
   
   var nextContentId : contentID = 0;
   let TRAX_ACCOUNT = "2l26f-kcxq2-2rwa7-zy36b-3wive-m3hfd-xrbr4-gocr4-7rklt-gmj4y-nqe";
+  // user testing account: gmv5g-o74g2-2qqbh-mmjtk-rmegk-yjl3k-ptcpg-agawk-lxmx6-zvlml-7ae
   let FEE : Nat64 = 10000;
 
   //PPV
@@ -122,11 +123,10 @@ actor Payments {
 
 
 // #region - Transfer  
-
 public func sendTip(from: UserID, to: ArtistID, amount: Nat64) : async (){
 
     var amountToSend = await platformDeduction(from, amount);
-    Debug.print("HEREEEE");
+    
 
         switch(await transfer(from, to, amountToSend)){
 
@@ -179,13 +179,13 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
       };
       case null { throw Error.reject("Could not find content object"); }
     };
-    Debug.print("HEREEEE");
+    
     switch(artistID){
       case (?principal) { 
         switch(await transfer(user, principal, price)){
           
           case(#ok(res)){
-            Debug.print("HEREEEE2");
+            
             var x = Map.HashMap<contentID, Nat64>(2, Nat32.equal, func (a : Nat32) : Nat32 {a});
             x.put(id, price);
             putUserContentMap(user, x);
@@ -206,7 +206,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
 
     let amountFloat : Float = Float.fromInt(Nat64.toNat(amount));
     let deduction :  Float = amountFloat * 0.10;
-    Debug.print("HEREEEE3");
+    
     switch(await transfer(user, traxAccount, Nat64.fromNat(Int.abs(Float.toInt(deduction))))){
       case(#ok(res)){
         Debug.print("Fee paid to trax account: " # debug_show traxAccount # " in block " # debug_show res);
@@ -222,15 +222,9 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
 
   func transfer(from: Principal, to: Principal, amount: Nat64): async Result.Result<Nat64, Text>{
 
-    // Debug.print("from subaccount: "# debug_show ?Account.principalToSubaccount(from));
-    // Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(from, Account.defaultSubaccount()));
-    // Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(Principal.fromActor(Payments), Account.principalToSubaccount(from)));
-
     let now = Time.now();
     let res = await Ledger.transfer({
-          memo = Nat64.fromNat(0); //TODO: add contentID as metadata for memo
-          // ?Account.accountIdentifier(from, Account.defaultSubaccount());
-          // ?Account.principalToSubaccount(from);
+          memo = Nat64.fromNat(0); 
           from_subaccount = ?Account.principalToSubaccount(from);
           to = Account.accountIdentifier(to, Account.defaultSubaccount());
           amount = { e8s = amount };
@@ -261,7 +255,6 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
 
 
 // #region - PPV Query State
-
   public query func userHasPaid(id: contentID, user: UserID) : async Bool{
     var price : Nat64 = 0;
     switch(contentMap.get(id)){
@@ -281,7 +274,6 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
             let deduction :  Float = priceFloat * 0.10;
             Debug.print("@useHasPaid - price after deduction = " # debug_show Nat64.fromNat(Int.abs(Float.toInt(priceFloat - deduction))));
             if(Nat64.fromNat(Int.abs(Float.toInt(priceFloat - deduction))) == amount){
-            // if(amount == price){
               return true;
             }else return false;
           };case null return false;  
@@ -350,11 +342,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
         Account.principalToSubaccount(user);
   };
 
-  /*
-    * Get Caller Identifier
-    * Allows a caller to the accountIdentifier for a given principal
-    * for a specific token.
-    */
+
   public query func get_account_identifier (args : T.GetAccountIdentifierArgs) : async T.GetAccountIdentifierResult {
     let token = args.token;
     let principal = args.principal;
@@ -381,7 +369,7 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
   public func accountBalance (account: Principal) : async Ledger.Tokens{
       var specifiedAccount = Account.accountIdentifier(account, Account.defaultSubaccount());
       await Ledger.account_balance({ account = specifiedAccount });
-    };
+  };
 
 
   public func canisterBalance() : async Ledger.Tokens {
@@ -396,8 +384,49 @@ public func purchaseContent(id: contentID, user: Principal) : async (){
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // backend integration
 // * find price fetching logic in api folder for ppv content and add respective sc logic
 // * add function in user/src/services/token-transaction.service.ts
 // * additional frontend component to handle execution of crypto payment 
 // * listen for transaction hash and match user id to unlock content 
+
+
+    // Debug.print("from subaccount: "# debug_show ?Account.principalToSubaccount(from));
+    // Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(from, Account.defaultSubaccount()));
+    // Debug.print("from subaccount: "# debug_show ?Account.accountIdentifier(Principal.fromActor(Payments), Account.principalToSubaccount(from)));
+//TODO: add contentID as metadata for memo
+          // ?Account.accountIdentifier(from, Account.defaultSubaccount());
+          // ?Account.principalToSubaccount(from);
